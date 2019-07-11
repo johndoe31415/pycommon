@@ -1,0 +1,295 @@
+#!/usr/bin/python3
+import re
+import sys
+import time
+import os
+import hashlib
+import shutil
+import collections
+import subprocess
+import datetime
+from MenuChoice import MenuChoice
+
+class PossibleMatchingFile(object):
+	_UUID_REGEX = re.compile("#\s+File UUID (?P<uuid>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$")
+
+	def __init__(self, filename):
+		self._filename = os.path.realpath(filename)
+		self._uuid = None
+		with open(self._filename, "r") as f:
+			for line in f:
+				line = line.rstrip("\r\n")
+				result = self._UUID_REGEX.fullmatch(line)
+				if result is not None:
+					self._uuid = result.groupdict()["uuid"]
+					break
+		with open(self._filename, "rb") as f:
+			self._hash = hashlib.md5(f.read()).hexdigest()
+
+	@property
+	def uuid(self):
+		return self._uuid
+
+	@property
+	def basename(self):
+		return os.path.basename(self.filename)
+
+	@property
+	def filename(self):
+		return self._filename
+
+	@property
+	def shorthash(self):
+		return self._hash[:8]
+
+	@property
+	def filehash(self):
+		return self._hash
+
+	def update(self):
+		return PossibleMatchingFile(self.filename)
+
+	def __cmpkey(self):
+		return (self.basename, self.filehash)
+
+	def __hash__(self):
+		return hash(self.__cmpkey())
+	
+	def __eq__(self, other):
+		return self.__cmpkey() == other.__cmpkey()
+	
+	def __neq__(self, other):
+		return not (self == other)
+	
+	def __lt__(self, other):
+		return self.__cmpkey() < other.__cmpkey()
+	
+	def shortstr(self, previous_entry = None):
+		if (previous_entry is not None) and (previous_entry.uuid == self.uuid):
+			show_uuid = (" " * 18) + "\""
+		else:
+			show_uuid = self.uuid
+		
+		if (previous_entry is not None) and (previous_entry.filehash == self.filehash):
+			show_hash = (" " * 4) + "\""
+		else:
+			show_hash = self.shorthash
+		
+		if len(self.filename) > 90:
+			show_filename = self.filename[-90:]
+		else:
+			show_filename = self.filename
+
+		return "[%-36s] %-90s %-8s" % (show_uuid, show_filename, show_hash)
+	
+	def __str__(self):
+		return "File<%s [%s] UUID=%s MD5=%s>" % (self.basename, self.filename, str(self.uuid), self.filehash)
+
+	def __repr__(self):
+		return str(self)
+
+class ScannerReplacer(object):
+	def __init__(self, reference_filename, exclude_missing_uuid = True, exclude_differing_uuid = True):
+		self._reference = PossibleMatchingFile(reference_filename)
+		if self._reference.uuid is None:
+			raise Exception("Reference file needs to have an UUID set.")
+		self._exclude_missing_uuid = exclude_missing_uuid
+		self._exclude_differing_uuid = exclude_differing_uuid
+		self._candidate_filelist = self._retrieve_candidate_filelist()
+		self._candidates = None
+		self._stats = { }
+		self._scan_candidates()
+	
+	@property
+	def reference(self):
+		return self._reference
+
+	def _retrieve_candidate_filelist(self):
+		cmd = [ "locate", "-r", "/" + self._reference.basename + "$" ]
+		proc = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+		(stdout, stderr) = proc.communicate()
+		stdout = stdout.decode("utf-8")
+		filelist = stdout.split("\n")
+		filelist = [ filename for filename in filelist if ((filename != "") and (filename != self._reference.filename)) ]
+		filelist.sort()
+		return filelist	
+
+	def _update_stats(self, candidates):
+		self._stats = { }
+		self._stats["file_cnt"] = len(self._candidate_filelist)
+		self._stats["no_uuid"] = len([ candidate for candidate in candidates if (candidate.uuid is None) ])
+		self._stats["diff_uuid"] = len([ candidate for candidate in candidates if (candidate.uuid != self._reference.uuid) ])
+		self._stats["chgset_cnt"] = len(set([ candidate.filehash for candidate in candidates if (candidate.filehash != self._reference.filehash) ]))
+		self._stats["identical"] = len([ candidate.filehash for candidate in candidates if (candidate.filehash == self._reference.filehash) ])
+
+	def _scan_candidates(self):
+		candidates = [ PossibleMatchingFile(filename) for filename in self._candidate_filelist ]
+		candidates.sort(key = lambda cand: (cand.uuid or "", cand.filehash, cand.filename))
+		self._update_stats(candidates)
+		candidates = [ candidate for candidate in candidates if (candidate.filehash != self._reference.filehash) ]
+		if self._exclude_missing_uuid:
+			candidates = [ candidate for candidate in candidates if (candidate.uuid is not None) ]
+		if self._exclude_differing_uuid:
+			candidates = [ candidate for candidate in candidates if (candidate.uuid == self._reference.uuid) ]
+		self._candidates = candidates
+
+	def dump_candidates(self):
+		print("-" * 150)
+		print("Ref: %s" % (self.reference.shortstr()))
+		last_candidate = self.reference 
+		for (index, candidate) in enumerate(self._candidates):
+			if last_candidate.filehash != candidate.filehash:
+				print()
+			print("     %s (%d)" % (candidate.shortstr(last_candidate), index + 1))
+			last_candidate = candidate
+		print("-" * 150)
+		summary_string = [ ]
+		summary_string.append("%d relevant entries found" % (len(self._candidates)))
+		summary_string.append("%d considered files" % (self._stats["file_cnt"]))
+		if self._stats["identical"]:
+			summary_string.append("%d identical to reference" % (self._stats["identical"]))
+		if self._stats["no_uuid"]:
+			summary_string.append("%d without UUID" % (self._stats["no_uuid"]))
+		if self._stats["diff_uuid"]:
+			summary_string.append("%d with differing UUID" % (self._stats["diff_uuid"]))
+		if self._stats["chgset_cnt"]:
+			summary_string.append("%d different changesets" % (self._stats["chgset_cnt"]))
+
+		print(", ".join(summary_string))
+		#print("%d candidates found (%d potential candidates):" % (len(self._candidates)))
+		print("-" * 150)
+
+	def update(self):
+		self._reference = self._reference.update()
+		self._scan_candidates()		
+
+	def getbyindex(self, index):
+		return self._candidates[index]
+
+	def __len__(self):
+		return len(self._candidates)
+
+	def __iter__(self):
+		return iter(self._candidates)
+
+class ScannerReplacerGUI(object):
+	def __init__(self, reference_filename):
+		self._srep = ScannerReplacer(reference_filename)		
+
+
+	def _gui_select_candidates(self):
+		print("Select all with UUID   : *")
+		print("Select all without UUID: -")
+		print("Select by hash         : '#8' means all with the same hash value of candidate 8")
+		print("Select by index        : e.g. '4' or '1,5,8'")
+		userinput = input("Candidate selector: ")
+		if userinput == "*":
+			return [ candidate for candidate in self._srep if (candidate.uuid is not None) ]
+		elif userinput == "-":
+			return [ candidate for candidate in self._srep if (candidate.uuid is None) ]
+		elif userinput.startswith("#"):
+			try:
+				index = int(userinput[1:]) - 1
+			except ValueError:
+				return [ ]
+			ref_filehash = self._srep.getbyindex(index).filehash
+			return [ candidate for candidate in self._srep if (candidate.filehash == ref_filehash) ]
+		else:
+			try:
+				indices = [ int(index) - 1 for index in userinput.split(",") ]
+			except ValueError:
+				return [ ]
+			return [ self._srep.getbyindex(index) for index in indices ]
+		return [ ]
+
+	def _gui_select_action(self):
+		menu = MenuChoice()
+		menu.add("diff", [ "d" ], "   Show the (d)iff to a candidate")
+		menu.add("meld", [ "m" ], "   (M)eld candidate")
+		menu.add("overwrite", [ "o" ], "   (O)verwrite candidates with reference")
+		menu.add("promote", [ "p" ], "   (P)romote a candidate to the new reference")
+		menu.add("rescan", [ "r" ], "   (R)escan all files")
+		menu.add("skip", [ "s" ], "   (S)kip to next file")
+		return menu.question()
+
+	def _backup(self, candidate):
+		try:
+			os.makedirs("variants")
+		except FileExistsError:
+			pass
+		backup_file_prefix = "%s_%s" % (candidate.basename, candidate.filehash)
+		for filename in os.listdir("variants"):
+			filename = filename[20:]
+			if filename.startswith(backup_file_prefix):
+				return
+
+		# Do backup
+		backup_filename = "variants/" + datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S") + "_" + backup_file_prefix
+		shutil.copy(candidate.filename, backup_filename)
+
+	def _overwrite(self, candidate):
+		self._backup(candidate)
+		print("Overwriting %s by %s" % (candidate.filename, self._srep.reference.filename))
+		try:
+			shutil.copy(self._srep.reference.filename, candidate.filename)
+		except PermissionError as e:
+			print("Error overwriting: %s" % (str(e)))
+	
+	def _promote(self, candidate):
+		self._backup(self._srep.reference)
+		print("Overwriting %s by %s" % (self._srep.reference.filename, candidate.filename))
+		shutil.copy(candidate.filename, self._srep.reference.filename)
+
+	def _diff(self, candidate):
+		cmd = [ "diff", "-u3", "-b", candidate.filename, self._srep.reference.filename ]
+		proc = subprocess.Popen(cmd)
+		proc.wait()
+	
+	def _meld(self, candidate):
+		self._backup(self._srep.reference)
+		self._backup(candidate)
+		cmd = [ "meld", self._srep.reference.filename, candidate.filename ]
+		proc = subprocess.Popen(cmd)
+		proc.wait()
+
+	def run(self):
+		while True:
+			if len(self._srep) == 0:
+				break
+
+			self._srep.dump_candidates()
+			action = self._gui_select_action()
+			if action in [ "diff", "meld", "promote" ]:
+				# May only select one candidate
+				candidates = self._gui_select_candidates()
+				if len(candidates) != 1:
+					print("Action requires selection of exactly one candidate, you selected %d." % (len(candidates)))
+				else:
+					candidate = candidates[0]
+					if action == "diff":
+						self._diff(candidate)
+					elif action == "meld":
+						self._meld(candidate)
+					elif action == "promote":
+						self._promote(candidate)
+			elif action == "overwrite":
+				candidates = self._gui_select_candidates()
+				for candidate in candidates:
+					self._overwrite(candidate)
+			elif action == "skip":
+				break
+			elif action == "rescan":
+				pass
+			else:
+				print("Lazy programmer: Action '%s' unimplemented." % (action))
+			self._srep.update()
+
+
+
+
+
+for filename in os.listdir("."):
+	if filename.endswith(".py"):
+		srgui = ScannerReplacerGUI(filename)
+		srgui.run()
+
