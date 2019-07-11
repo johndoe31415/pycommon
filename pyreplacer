@@ -1,4 +1,25 @@
 #!/usr/bin/python3
+#	pycommon - Collection of various useful Python utilities.
+#	Copyright (C) 2019-2019 Johannes Bauer
+#
+#	This file is part of pycommon.
+#
+#	pycommon is free software; you can redistribute it and/or modify
+#	it under the terms of the GNU General Public License as published by
+#	the Free Software Foundation; this program is ONLY licensed under
+#	version 3 of the License, later versions are explicitly excluded.
+#
+#	pycommon is distributed in the hope that it will be useful,
+#	but WITHOUT ANY WARRANTY; without even the implied warranty of
+#	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#	GNU General Public License for more details.
+#
+#	You should have received a copy of the GNU General Public License
+#	along with pycommon; if not, write to the Free Software
+#	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#
+#	Johannes Bauer <JohannesBauer@gmx.de>
+
 import re
 import sys
 import time
@@ -54,34 +75,34 @@ class PossibleMatchingFile(object):
 
 	def __hash__(self):
 		return hash(self.__cmpkey())
-	
+
 	def __eq__(self, other):
 		return self.__cmpkey() == other.__cmpkey()
-	
+
 	def __neq__(self, other):
 		return not (self == other)
-	
+
 	def __lt__(self, other):
 		return self.__cmpkey() < other.__cmpkey()
-	
+
 	def shortstr(self, previous_entry = None):
 		if (previous_entry is not None) and (previous_entry.uuid == self.uuid):
 			show_uuid = (" " * 18) + "\""
 		else:
 			show_uuid = self.uuid
-		
+
 		if (previous_entry is not None) and (previous_entry.filehash == self.filehash):
 			show_hash = (" " * 4) + "\""
 		else:
 			show_hash = self.shorthash
-		
+
 		if len(self.filename) > 90:
 			show_filename = self.filename[-90:]
 		else:
 			show_filename = self.filename
 
 		return "[%-36s] %-90s %-8s" % (show_uuid, show_filename, show_hash)
-	
+
 	def __str__(self):
 		return "File<%s [%s] UUID=%s MD5=%s>" % (self.basename, self.filename, str(self.uuid), self.filehash)
 
@@ -99,7 +120,7 @@ class ScannerReplacer(object):
 		self._candidates = None
 		self._stats = { }
 		self._scan_candidates()
-	
+
 	@property
 	def reference(self):
 		return self._reference
@@ -112,7 +133,7 @@ class ScannerReplacer(object):
 		filelist = stdout.split("\n")
 		filelist = [ filename for filename in filelist if ((filename != "") and (filename != self._reference.filename)) ]
 		filelist.sort()
-		return filelist	
+		return filelist
 
 	def _update_stats(self, candidates):
 		self._stats = { }
@@ -136,7 +157,7 @@ class ScannerReplacer(object):
 	def dump_candidates(self):
 		print("-" * 150)
 		print("Ref: %s" % (self.reference.shortstr()))
-		last_candidate = self.reference 
+		last_candidate = self.reference
 		for (index, candidate) in enumerate(self._candidates):
 			if last_candidate.filehash != candidate.filehash:
 				print()
@@ -161,7 +182,7 @@ class ScannerReplacer(object):
 
 	def update(self):
 		self._reference = self._reference.update()
-		self._scan_candidates()		
+		self._scan_candidates()
 
 	def getbyindex(self, index):
 		return self._candidates[index]
@@ -174,7 +195,7 @@ class ScannerReplacer(object):
 
 class ScannerReplacerGUI(object):
 	def __init__(self, reference_filename):
-		self._srep = ScannerReplacer(reference_filename)		
+		self._srep = ScannerReplacer(reference_filename)
 
 
 	def _gui_select_candidates(self):
@@ -234,7 +255,7 @@ class ScannerReplacerGUI(object):
 			shutil.copy(self._srep.reference.filename, candidate.filename)
 		except PermissionError as e:
 			print("Error overwriting: %s" % (str(e)))
-	
+
 	def _promote(self, candidate):
 		self._backup(self._srep.reference)
 		print("Overwriting %s by %s" % (self._srep.reference.filename, candidate.filename))
@@ -244,7 +265,7 @@ class ScannerReplacerGUI(object):
 		cmd = [ "diff", "-u3", "-b", candidate.filename, self._srep.reference.filename ]
 		proc = subprocess.Popen(cmd)
 		proc.wait()
-	
+
 	def _meld(self, candidate):
 		self._backup(self._srep.reference)
 		self._backup(candidate)
@@ -283,10 +304,6 @@ class ScannerReplacerGUI(object):
 			else:
 				print("Lazy programmer: Action '%s' unimplemented." % (action))
 			self._srep.update()
-
-
-
-
 
 for filename in os.listdir("."):
 	if filename.endswith(".py"):
