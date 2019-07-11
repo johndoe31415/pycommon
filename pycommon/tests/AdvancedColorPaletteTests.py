@@ -39,3 +39,10 @@ class AdvancedColorPaletteTests(unittest.TestCase):
 		self.assertEqual(palette[0], (0x1a, 0xbc, 0x9c))
 #		self.assertEqual(palette["emerland"], (0x2e, 0xcc, 0x71))
 		self.assertEqual(palette[1], (0x7f, 0x8c, 0x8d))
+
+	def test_mixing(self):
+		palette = AdvancedColorPalette.load_from_json(self._json_filename, "traffic")
+		self.assertEqual(palette[0], (0xff, 0x00, 0x00))
+		self.assertEqual(palette[0.25], (0xff, 0x80, 0x00))
+		self.assertEqual(palette[0.5], (0xff, 0xff, 0x00))
+		self.assertEqual(palette[1], (0x2a, 0x9f, 0x0f))
