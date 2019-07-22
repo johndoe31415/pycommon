@@ -30,6 +30,10 @@ class Vector2d(object):
 		self._x = x
 		self._y = y
 
+	@classmethod
+	def unit_angle(cls, angle_rad):
+		return cls(x = math.cos(angle_rad), y = math.sin(angle_rad))
+
 	@property
 	def x(self):
 		return self._x
@@ -38,8 +42,13 @@ class Vector2d(object):
 	def y(self):
 		return self._y
 
+	@property
 	def length(self):
 		return math.sqrt((self.x ** 2) + (self.y ** 2))
+
+	@property
+	def angle(self):
+		return math.atan2(self.y, self.x) % (2 * math.pi)
 
 	def comp_div(self, other):
 		"""Component-wise division."""

@@ -19,6 +19,7 @@
 #
 #       Johannes Bauer <JohannesBauer@gmx.de>
 
+import math
 import unittest
 from pycommon.Vector2d import Vector2d
 
@@ -53,10 +54,10 @@ class Vector2dTests(unittest.TestCase):
 		self.assertAlmostEqual(v.y, 2)
 
 	def test_length(self):
-		self.assertAlmostEqual(Vector2d(1, 0).length(), 1)
-		self.assertAlmostEqual(Vector2d(0, 1).length(), 1)
-		self.assertAlmostEqual(Vector2d(1, 1).length(), 1.4142135623730951)
-		self.assertAlmostEqual(Vector2d(1, 10).length(), 10.04987562112089)
+		self.assertAlmostEqual(Vector2d(1, 0).length, 1)
+		self.assertAlmostEqual(Vector2d(0, 1).length, 1)
+		self.assertAlmostEqual(Vector2d(1, 1).length, 1.4142135623730951)
+		self.assertAlmostEqual(Vector2d(1, 10).length, 10.04987562112089)
 
 	def test_comp_div(self):
 		v = Vector2d(-1, 5).comp_div(Vector2d(9, 12))
@@ -72,3 +73,20 @@ class Vector2dTests(unittest.TestCase):
 		self.assertEqual(Vector2d(99, 3), Vector2d(99, 3))
 		self.assertNotEqual(Vector2d(99, 3), Vector2d(99, 3.1))
 		self.assertNotEqual(Vector2d(99, 3), Vector2d(99.1, 3))
+
+	def test_angle(self):
+		self.assertAlmostEqual(Vector2d(1, 0).angle, 0)
+		self.assertAlmostEqual(Vector2d(0, 1).angle, math.pi / 2)
+		self.assertAlmostEqual(Vector2d(-1, 0).angle, math.pi)
+		self.assertAlmostEqual(Vector2d(1, 1).angle, math.pi / 4)
+		self.assertAlmostEqual(Vector2d(10, 10).angle, math.pi / 4)
+		self.assertAlmostEqual(Vector2d(-10, -10).angle, 5 / 4 * math.pi)
+
+	def test_unitangle(self):
+		v = Vector2d.unit_angle(math.pi)
+		self.assertAlmostEqual(v.x, -1)
+		self.assertAlmostEqual(v.y, 0)
+
+		v = Vector2d.unit_angle(45 / 180 * math.pi)
+		self.assertAlmostEqual(v.x, 1 / math.sqrt(2))
+		self.assertAlmostEqual(v.y, 1 / math.sqrt(2))
