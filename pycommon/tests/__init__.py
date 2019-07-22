@@ -20,3 +20,4 @@
 #	Johannes Bauer <JohannesBauer@gmx.de>
 
 from .AdvancedColorPaletteTests import AdvancedColorPaletteTests
+from .Vector2dTests import Vector2dTests
