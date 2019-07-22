@@ -58,10 +58,11 @@ def baseint(value, default_base = 10):
 		return int(value, default_base)
 
 if __name__ == "__main__":
-	parser = FriendlyArgumentParser()
+	parser = FriendlyArgumentParser(description = "Simple example application.")
 	parser.add_argument("-d", "--dbfile", metavar = "filename", type = str, default = "mydb.sqlite", help = "Specifies database file to use. Defaults to %(default)s.")
 	parser.add_argument("-f", "--force", action = "store_true", help = "Do not ask for confirmation")
 	parser.add_argument("-x", metavar = "hexint", type = baseint, default = "0x100", help = "Defaults to %(default)s.")
+	parser.add_argument("-v", "--verbose", action = "count", default = 0, help = "Increases verbosity. Can be specified multiple times to increase.")
 	parser.add_argument("qids", metavar = "qid", type = int, nargs = "+", help = "Question ID(s) of the question(s) to be edited")
 	args = parser.parse_args(sys.argv[1:])
 	print(args)
