@@ -143,7 +143,7 @@ class CachedRequests():
 		request = self._GenericRequest(verb = "GET", url = self._build_url(url, query_params), postdata = None, headers = self._determine_headers(headers), max_age_secs = max_age_secs if (max_age_secs is not None) else self._cache_duration_secs, return_json = return_json)
 		return self._execute(request)
 
-	def post(self, url, query_params = None, postdata = None, headers = None, return_json = False):
+	def post(self, url, query_params = None, postdata = None, headers = None, max_age_secs = None, return_json = False):
 		request = self._GenericRequest(verb = "POST", url = self._build_url(url, query_params), postdata = postdata, headers = self._determine_headers(headers), max_age_secs = max_age_secs if (max_age_secs is not None) else self._cache_duration_secs, return_json = return_json)
 		return self._execute(request)
 
