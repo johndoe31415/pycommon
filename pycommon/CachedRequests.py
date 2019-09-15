@@ -33,7 +33,7 @@ import hashlib
 import json
 
 class CachedRequests():
-	_GenericRequest = collections.namedtuple("GenericRequest", [ "verb", "url", "postdata", "headers", "max_age_secs" ])
+	_GenericRequest = collections.namedtuple("GenericRequest", [ "verb", "url", "postdata", "headers", "return_json", "max_age_secs" ])
 	_Response = collections.namedtuple("Response", [ "status_code", "headers", "content", "cached", "age" ])
 
 	def __init__(self, cache_filename = ".requests_cache.sqlite3", cache_duration_secs = 3600, cache_post = False, fixed_headers = None, minimum_gracetime_secs = None, cache_failed_requests = True):
@@ -125,25 +125,26 @@ class CachedRequests():
 	def _execute(self, request):
 		if (request.verb == "POST") and (not self._cache_post):
 			# Never cache POST requests
-			return self._execute_uncached(request)
-
-		request_hash = self._hash_request(request)
-		cached_response = self._cache_lookup(max_age_secs = request.max_age_secs, request_hash = request_hash)
-		if cached_response is None:
 			response = self._execute_uncached(request)
-			if (self._cache_failed_requests) or (response.status_code == 200):
-				self._cache_store(request, request_hash, response)
 		else:
-			response = cached_response
+			request_hash = self._hash_request(request)
+			cached_response = self._cache_lookup(max_age_secs = request.max_age_secs, request_hash = request_hash)
+			if cached_response is None:
+				response = self._execute_uncached(request)
+				if (self._cache_failed_requests) or (response.status_code == 200):
+					self._cache_store(request, request_hash, response)
+			else:
+				response = cached_response
+		if request.return_json:
+			response = json.loads(response.content)
 		return response
 
-
-	def get(self, url, query_params = None, headers = None, max_age_secs = None):
-		request = self._GenericRequest(verb = "GET", url = self._build_url(url, query_params), postdata = None, headers = self._determine_headers(headers), max_age_secs = max_age_secs if (max_age_secs is not None) else self._cache_duration_secs)
+	def get(self, url, query_params = None, headers = None, max_age_secs = None, return_json = False):
+		request = self._GenericRequest(verb = "GET", url = self._build_url(url, query_params), postdata = None, headers = self._determine_headers(headers), max_age_secs = max_age_secs if (max_age_secs is not None) else self._cache_duration_secs, return_json = return_json)
 		return self._execute(request)
 
-	def post(self, url, query_params = None, postdata = None, headers = None):
-		request = self._GenericRequest(verb = "POST", url = self._build_url(url, query_params), postdata = postdata, headers = self._determine_headers(headers), max_age_secs = max_age_secs if (max_age_secs is not None) else self._cache_duration_secs)
+	def post(self, url, query_params = None, postdata = None, headers = None, return_json = False):
+		request = self._GenericRequest(verb = "POST", url = self._build_url(url, query_params), postdata = postdata, headers = self._determine_headers(headers), max_age_secs = max_age_secs if (max_age_secs is not None) else self._cache_duration_secs, return_json = return_json)
 		return self._execute(request)
 
 
@@ -151,3 +152,5 @@ if __name__ == "__main__":
 	cr = CachedRequests(cache_duration_secs = 10)
 	cr.get("https://google.de", query_params = [ ("foo", "bar"), ("a", "b") ])
 	cr.get("https://google.de", query_params = { "foo": "bar", "a": "b" })
+	rsp = cr.get("https://beatsaver.com/api/maps/downloads", return_json = True)
+	print(rsp)
