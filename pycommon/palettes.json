@@ -121,5 +121,10 @@
 		{ "rgb": "ffff00",			"pos": 0.5 },
 		{ "rgb": "32ff00",			"pos": 0.75 },
 		{ "rgb": "2a9f0f",			"pos": 1 }
+	],
+	"warmcolors": [
+		{ "rgb": "ffde00",			"pos": 0 },
+		{ "rgb": "ff0000",			"pos": 0.5 },
+		{ "rgb": "ff00dd",			"pos": 1 }
 	]
 }
