@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 #
 #	StatisticalEval - Basic statistics calculation
-#	Copyright (C) 2014-2015 Johannes Bauer
+#	Copyright (C) 2014-2019 Johannes Bauer
 #
 #	This file is part of jpycommon.
 #
@@ -93,6 +93,24 @@ class StatisticalEval(object):
 		if self.percentile_sensible(99.99):
 			print("99.99%% percentile   : %.4f" % (self.percentile(99.99)))
 
+	def to_dict(self, percentiles = None):
+		result = {
+			"average":	self.avg,
+			"median":	self.percentile(50),
+			"minimum":	self.min,
+			"maximum":	self.max,
+			"stddev":	self.stddev,
+		}
+		if percentiles is not None:
+			result["percentiles"] = [ ]
+			for percentile in percentiles:
+				result["percentiles"].append({
+					"percentile":	percentile,
+					"value":		self.percentile(percentile),
+					"sensible":		self.percentile_sensible(percentile),
+				})
+		return result
+
 	def write_to_file(self, filename):
 		f = open(filename, "w")
 		for (index, value) in enumerate(self._values):
@@ -107,7 +125,8 @@ class StatisticalEval(object):
 
 if __name__ == "__main__":
 	import random
-	stats = StatisticalEval()
+	stats = StatisticalEval([1,2,9])
+	print(stats.to_dict(percentiles = [ 99 ]))
 	for i in range(1000000):
 		stats.append(random.random())
 	stats.dump()
