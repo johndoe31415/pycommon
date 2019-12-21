@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 #
 #	CacheDecorator - Simple timed cache decorator.
-#	Copyright (C) 2011-2012 Johannes Bauer
+#	Copyright (C) 2011-2019 Johannes Bauer
 #	
 #	This file is part of pycommon.
 #
@@ -51,7 +51,7 @@ if __name__ == "__main__":
 		print("c =", c)
 		return a * b * c
 
-	class MyClass(object):
+	class MyClass():
 		def __init__(self):
 			self._x = 0
 

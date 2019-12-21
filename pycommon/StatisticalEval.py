@@ -25,7 +25,7 @@
 
 import numpy
 
-class StatisticalEval(object):
+class StatisticalEval():
 	def __init__(self, values = None):
 		if values is None:
 			self._values = [ ]

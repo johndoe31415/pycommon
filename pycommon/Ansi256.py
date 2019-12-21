@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 #
 #	Ansi256 - Simple 256 color terminal markup abstraction.
-#	Copyright (C) 2011-2012 Johannes Bauer
+#	Copyright (C) 2011-2019 Johannes Bauer
 #	
 #	This file is part of pycommon.
 #
@@ -26,7 +26,7 @@
 import re
 import colorsys
 
-class Ansi256(object):
+class Ansi256():
 	_commoncolors = {
 		"red":			"#ff0000",
 		"green":		"#0ca300",

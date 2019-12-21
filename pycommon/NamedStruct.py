@@ -26,7 +26,7 @@
 import collections
 import struct
 
-class NamedStruct(object):
+class NamedStruct():
 	def __init__(self, fields, struct_extra = "<"):
 		struct_format = struct_extra + ("".join(fieldtype for (fieldtype, fieldname) in fields))
 		self._struct = struct.Struct(struct_format)

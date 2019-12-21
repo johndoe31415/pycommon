@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 #
 #	DateRange - Format date ranges or instants in language.
-#	Copyright (C) 2011-2012 Johannes Bauer
+#	Copyright (C) 2011-2019 Johannes Bauer
 #	
 #	This file is part of pycommon.
 #
@@ -25,7 +25,7 @@
 
 import datetime
 
-class SingularPlural(object):
+class SingularPlural():
 	def __init__(self, singular, plural, one_word = None):
 		self._singular = singular
 		self._plural = plural
@@ -40,7 +40,7 @@ class SingularPlural(object):
 		else:
 			return "%d %s" % (i, self._plural)
 
-class DayInstantGerman(object):
+class DayInstantGerman():
 	"""Formats an instant in time, i.e something like 'tomorrow' or 'in 10
 	weeks' or '4 months ago'."""
 	_DAY_FORMAT = SingularPlural("Tag", "Tagen", "einem")
@@ -102,7 +102,7 @@ class DayInstantGerman(object):
 
 		return s
 
-class DayInstantEnglish(object):
+class DayInstantEnglish():
 	"""Formats an instant in time, i.e something like 'tomorrow' or 'in 10
 	weeks' or '4 months ago'."""
 	_DAY_FORMAT = SingularPlural("day", "days", "one")
@@ -163,7 +163,7 @@ class DayInstantEnglish(object):
 		return s
 
 
-class DayPeriodEnglish(object):
+class DayPeriodEnglish():
 	"""Formats a period of time, i.e something like 'three months' or 'two
 	days'."""
 	_DAY_FORMAT = SingularPlural("day", "days", "one")

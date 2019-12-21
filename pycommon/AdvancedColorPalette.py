@@ -27,7 +27,7 @@ import json
 import bisect
 import collections
 
-class AdvancedColorPalette(object):
+class AdvancedColorPalette():
 	_ColorElement = collections.namedtuple("ColorElement", [ "pos", "name", "r", "g", "b" ])
 
 	def __init__(self, palette_data):

@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 #
 #	StopWatch - Simple abstraction class for timing using context managers.
-#	Copyright (C) 2011-2012 Johannes Bauer
+#	Copyright (C) 2011-2019 Johannes Bauer
 #
 #	This file is part of pycommon.
 #
@@ -25,7 +25,7 @@
 
 import time
 
-class StopWatch(object):
+class StopWatch():
 	def __init__(self, component = None, noisy = False):
 		self._component = component
 		self._noisy = noisy

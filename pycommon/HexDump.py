@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 #
 #	HexDump - Dump data in hex format
-#	Copyright (C) 2011-2013 Johannes Bauer
+#	Copyright (C) 2011-2019 Johannes Bauer
 #
 #	This file is part of pycommon.
 #
@@ -23,7 +23,7 @@
 #
 #	File UUID 941e5121-2571-4c39-a58b-975600045055
 
-class HexDump(object):
+class HexDump():
 	def __init__(self):
 		self._format = "full"
 		self._width = 16

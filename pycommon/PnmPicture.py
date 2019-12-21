@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 #
 #	PnmPicture - Simple PNM picture abstraction.
-#	Copyright (C) 2011-2012 Johannes Bauer
+#	Copyright (C) 2011-2019 Johannes Bauer
 #
 #	This file is part of pycommon.
 #
@@ -351,7 +351,7 @@ class PnmPicture():
 			return "%d x %d (%d bytes)" % (self._width, self._height, len(self._data))
 
 
-class FilterStencil(object):
+class FilterStencil():
 	def __init__(self, width, height, coeffs):
 		assert((width % 2) == 1)
 		assert((height % 2) == 1)

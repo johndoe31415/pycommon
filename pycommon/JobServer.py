@@ -1,8 +1,8 @@
 #!/usr/bin/python3
 #
 #	JobServer - Schedule multiple jobs in a parallelized fashion.
-#	Copyright (C) 2016-2016 Johannes Bauer
-#	
+#	Copyright (C) 2016-2019 Johannes Bauer
+#
 #	This file is part of pycommon.
 #
 #	pycommon is free software; you can redistribute it and/or modify
@@ -35,13 +35,13 @@ class JobStatus(enum.IntEnum):
 	finished = 2
 	closed = 3
 
-class Job(object):
+class Job():
 	def __init__(self):
 		self._jobserver = None
 		self._status = JobStatus.idle
 		self._successful = None
 		self._depends = [ ]
-	
+
 	@property
 	def jobserver(self):
 		return self._jobserver
@@ -85,7 +85,7 @@ class Job(object):
 		"""Returns if the job is stuck in idle state and has all its
 		prerequisites satisfied."""
 		return (self.status == JobStatus.idle) and all((job.status == JobStatus.closed) and (job.successful is True) for job in self._depends)
-	
+
 	@property
 	def can_never_start(self):
 		"""Returns if the job is stuck in idle state and can never be started because dependencies failed."""
@@ -105,7 +105,7 @@ class ExecuteCommandJob(Job):
 		else:
 			self._success_errcodes = success_errcodes
 		self._proc = None
-	
+
 	def execute(self):
 		self.status = JobStatus.running
 		self._proc = subprocess.Popen(self._command)
@@ -120,7 +120,7 @@ class RemoveFileJob(Job):
 	def __init__(self, filename):
 		Job.__init__(self)
 		self._filename = filename
-	
+
 	def execute(self):
 		self.status = JobStatus.running
 		try:
@@ -130,7 +130,7 @@ class RemoveFileJob(Job):
 			print("Unlink failed", e)
 			self.successful = False
 		self.status = JobStatus.finished
-	
+
 	def __str__(self):
 		return "[%s] RemoveFileJob<%s>" % (self.status, self._filename)
 
@@ -151,7 +151,7 @@ class _TimingThread(threading.Thread):
 		self._interval = interval
 		self._callback = callback
 		self._cond = threading.Condition()
-	
+
 	def quit(self):
 		self._quit = True
 
@@ -166,7 +166,7 @@ class _TimingThread(threading.Thread):
 				self._cond.wait(timeout = self._interval)
 
 
-class JobServer(object):
+class JobServer():
 	def __init__(self, concurrent_job_count, verbose = True):
 		self._concurrent_cnt = concurrent_job_count
 		self._lock = threading.Lock()
@@ -212,7 +212,7 @@ class JobServer(object):
 						print("Starting: %s" % (str(job)))
 					_JobExecutionWorker(job).start()
 					self._run_cnt += 1
-		
+
 	def add(self, job, after_list = None):
 		with self._lock:
 			job.jobserver = self

@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 #
 #	Obfuscator - Obfuscate and deobfuscate strings or bytes.
-#	Copyright (C) 2011-2012 Johannes Bauer
+#	Copyright (C) 2011-2019 Johannes Bauer
 #	
 #	This file is part of pycommon.
 #
@@ -27,7 +27,7 @@ import hashlib
 import base64
 import random
 
-class Obfuscator(object):
+class Obfuscator():
 	def _genkeystream(bytecnt, key = None):
 		if key is None:
 			key = "x8kaSVdQsZ"

@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 #
 #       SpeedAverager - simple object that manages position over time to determine speed
-#       Copyright (C) 2017-2017 Johannes Bauer
+#       Copyright (C) 2017-2019 Johannes Bauer
 #
 #       This file is part of pycommon.
 #
@@ -25,7 +25,7 @@
 
 import time
 
-class SpeedAverager(object):
+class SpeedAverager():
 	def __init__(self, min_secs = 1, average_secs = 25):
 		self._min_secs = min_secs
 		self._average_secs = average_secs

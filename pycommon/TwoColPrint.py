@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 #
 #	TwoColPrint - Print text in two columns, wrap as appropriate.
-#	Copyright (C) 2011-2012 Johannes Bauer
+#	Copyright (C) 2011-2019 Johannes Bauer
 #	
 #	This file is part of pycommon.
 #
@@ -29,7 +29,7 @@ import collections
 
 _Row = collections.namedtuple("Row", [ "left", "right", "annotation" ])
 
-class TwoColPrint(object):
+class TwoColPrint():
 	def __init__(self, prefix = "", total_width = 120, spacer_width = 3, width_ratio = 0.25):
 		self._rows = [ ]
 		self._prefix = prefix
