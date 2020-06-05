@@ -1,5 +1,5 @@
 #	pycommon - Collection of various useful Python utilities.
-#	Copyright (C) 2019-2019 Johannes Bauer
+#	Copyright (C) 2019-2020 Johannes Bauer
 #
 #	This file is part of pycommon.
 #
@@ -21,3 +21,4 @@
 
 from .AdvancedColorPaletteTests import AdvancedColorPaletteTests
 from .Vector2dTests import Vector2dTests
+from .PasswordGenTests import PasswordGenTests
