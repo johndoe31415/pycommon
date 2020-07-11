@@ -24,9 +24,13 @@
 #	File UUID cb909aad-8642-42a8-a171-8b7be71c8ce9
 
 class TabAligner():
-	def __init__(self, columns, tabsize = 4):
-		assert(all((column % tabsize) == 1 for column in columns))
-		self._columns = [ column - 1 for column in columns ]
+	def __init__(self, columns, tabsize = 4, zero_based_colums = True):
+		if zero_based_colums:
+			assert(all((column % tabsize) == 0 for column in columns))
+			self._columns = columns
+		else:
+			assert(all((column % tabsize) == 1 for column in columns))
+			self._columns = [ column - 1 for column in columns ]
 		self._tabsize = tabsize
 
 	def __call__(self, *values):
@@ -53,7 +57,7 @@ class TabAligner():
 
 
 if __name__ == "__main__":
-	tal = TabAligner([ 1, 13, 41 ])
+	tal = TabAligner([ 0, 12, 40 ])
 	print(tal("foo", "bar", "moo"))
 	print(tal("foox", "bar", "moo"))
 	print(tal("fooxx", "bar", "moo"))
