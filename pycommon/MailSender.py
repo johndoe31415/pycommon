@@ -27,17 +27,24 @@ import smtplib
 import urllib.parse
 import email.utils
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 class MailSender():
+	_DEFAULT_PORTS = {
+		"smtp":			25,
+		"smtps":		465,
+		"submission":	587,
+	}
+
 	def __init__(self, smtp_uri = "smtp://127.0.0.1", use_starttls = True, auth = None, x_mailer = "https://github.com/johndoe31415/pycommon MailSender"):
 		self._uri = urllib.parse.urlparse(smtp_uri)
-		assert(self._uri.scheme.lower() in [ "smtp", "smtps" ])
+		assert(self._uri.scheme.lower() in self._DEFAULT_PORTS)
 		hostname_port = self._uri.netloc.split(":", maxsplit = 1)
 		if len(hostname_port) == 2:
 			(self._hostname, self._port) = (hostname_port[0], int(hostname_port[1]))
 		else:
 			self._hostname = hostname_port[0]
-			self._port = 25 if (self._uri.scheme == "smtp") else 465
+			self._port = self._DEFAULT_PORTS[self._uri.scheme]
 		self._starttls = use_starttls
 		self._auth = auth
 		self._x_mailer = x_mailer
@@ -55,13 +62,26 @@ class MailSender():
 		else:
 			return [ self._format_address(address) for address in address_input ]
 
-	def send(self, from_addr, subject, body, to_addr = None, to_addrs = None, cc_addrs = None, bcc_addrs = None):
+	def send(self, from_addr, subject, body_text = None, body_html = None, to_addr = None, to_addrs = None, cc_addrs = None, bcc_addrs = None):
 		if (to_addr is None) and (to_addrs is None):
 			raise ValueError("Either 'to_addr' or 'to_addrs' must be specified.")
 		elif (to_addr is not None) and (to_addrs is not None):
 			raise ValueError("Either of 'to_addr' or 'to_addrs' must be specified, not both.")
+		if (body_text is None) and (body_html is None):
+			raise ValueError("At least one of 'body_text' or 'body_html' must be specified.")
 
-		message = MIMEText(body)
+		if body_html is None:
+			# Text only
+			message = MIMEText(body_text, "plain")
+		elif body_text is None:
+			# HTML only
+			message = MIMEText(body_html, "html")
+		else:
+			# Text and HTML
+			message = MIMEMultipart("alternative")
+			message.attach(MIMEText(body_text, "plain"))
+			message.attach(MIMEText(body_html, "html"))
+
 		from_addr = self._format_address(from_addr)
 		if to_addr is not None:
 			to_addr = [ self._format_address(to_addr) ]
@@ -79,6 +99,7 @@ class MailSender():
 		if self._x_mailer is not None:
 			message["X-Mailer"] = self._x_mailer
 		message = message.as_string()
+		print(message)
 
 		if self._uri.scheme.lower() == "smtp":
 			conn = smtplib.SMTP(self._hostname, self._port)
@@ -98,4 +119,6 @@ class MailSender():
 
 if __name__ == "__main__":
 	mail = MailSender()
-	mail.send(("Thäng", "thaeng@foo.com") , "target@x.de", "Hey there", "What are you up to?")
+	#mail.send(("Thäng", "thaeng@foo.com") , to_addr = "target@x.de", subject = "Hey there", body_text = "What are you up to?")
+	#mail.send(("Thäng", "thaeng@foo.com") , to_addr = "target@x.de", subject = "Hey there", body_html = "<b>What are you up to?</b>")
+	mail.send(("Thäng", "thaeng@foo.com") , to_addr = "target@x.de", subject = "Hey there", body_text = "text!", body_html = "<b>What are you up to?</b>")
