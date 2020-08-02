@@ -26,6 +26,7 @@
 import smtplib
 import urllib.parse
 import email.utils
+import textwrap
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -48,6 +49,16 @@ class MailSender():
 		self._starttls = use_starttls
 		self._auth = auth
 		self._x_mailer = x_mailer
+
+	@classmethod
+	def wrap_paragraphs(cls, text, width = 72):
+		output = [ ]
+		for paragraph in text.split("\n"):
+			if paragraph == "":
+				output.append("")
+			else:
+				output += textwrap.wrap(paragraph, width = width)
+		return "\n".join(output)
 
 	@staticmethod
 	def _format_address(address_input):
@@ -118,6 +129,14 @@ class MailSender():
 			server.sendmail(email_from, email_to, message)
 
 if __name__ == "__main__":
+	print(MailSender.wrap_paragraphs("""\
+Test test testTest test testTest test testTest test testTest test testTest test testTest test testTest test testTest test testTest test testTest test test
+
+Ja ja ja ja ja.
+
+Test
+"""))
+
 	mail = MailSender()
 	#mail.send(("Thäng", "thaeng@foo.com") , to_addr = "target@x.de", subject = "Hey there", body_text = "What are you up to?")
 	#mail.send(("Thäng", "thaeng@foo.com") , to_addr = "target@x.de", subject = "Hey there", body_html = "<b>What are you up to?</b>")
