@@ -97,7 +97,7 @@ class MailSender():
 		if to_addr is not None:
 			to_addr = [ self._format_address(to_addr) ]
 		else:
-			to_addr = self._format_addresses(to_addr)
+			to_addr = self._format_addresses(to_addrs)
 		message["From"] = from_addr
 		message["To"] = ", ".join(to_addr)
 		message["Subject"] = subject
@@ -110,7 +110,6 @@ class MailSender():
 		if self._x_mailer is not None:
 			message["X-Mailer"] = self._x_mailer
 		message = message.as_string()
-		print(message)
 
 		if self._uri.scheme.lower() == "smtp":
 			conn = smtplib.SMTP(self._hostname, self._port)
