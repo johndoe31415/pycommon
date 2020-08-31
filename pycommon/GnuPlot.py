@@ -29,10 +29,11 @@ def _escape(text):
 	return text
 
 class GnuPlotDataset():
-	def __init__(self, xydata, title = "Graph", plotstyle = "lines", line_width = None, point_size = None, color = None, smooth = None, normalize_y = False, scale_y = 1):
+	def __init__(self, xydata, title = "Graph", plotstyle = "lines", line_width = None, point_size = None, color = None, smooth = None, normalize_y = False, scale_y = 1, axis = 1):
 		assert((color is None) or (isinstance(color, str) and (len(color) == 6)))
 		assert(plotstyle in [ "lines", "dots", "points", "steps" ])
 		assert((smooth is None) or (smooth in [ "cspline", "bezier" ]))
+		assert(axis in [ 1, 2 ])
 		if isinstance(xydata, dict):
 			self._xydata = sorted(xydata.items())
 		else:
@@ -44,8 +45,10 @@ class GnuPlotDataset():
 		self._line_width = line_width
 		self._point_size = point_size
 		self._color = color
+		self._default_color = None
 		self._smooth = smooth
 		self._scale_y = scale_y
+		self._axis = axis
 
 	@staticmethod
 	def _normalize(xydata):
@@ -55,6 +58,9 @@ class GnuPlotDataset():
 		if ysum > 0:
 			for (x, y) in xydata:
 				yield (x, y / ysum)
+
+	def assign_default_color(self, color):
+		self._default_color = color
 
 	@property
 	def plot_cmd(self):
@@ -69,21 +75,34 @@ class GnuPlotDataset():
 			cmd += [ "pointsize", "%.2f" % (self._point_size) ]
 		if self._color is not None:
 			cmd += [ "linetype", "rgb", "\"#%s\"" % (self._color) ]
+		elif self._default_color is not None:
+			cmd += [ "linetype", "rgb", "\"#%s\"" % (self._default_color) ]
 		if self._smooth is not None:
 			cmd += [ "smooth", self._smooth ]
+		if self._axis == 2:
+			cmd += [ "axis", "x1y2" ]
 		return " ".join(cmd)
 
 	def __iter__(self):
 		return iter(self._xydata)
 
 class GnuPlotDiagram():
-	def __init__(self, terminal = "pngcairo", default_width = 1920, default_height = 1080, title = None, xtitle = None, ytitle = None):
+	_DEFAULT_COLORS = [
+		"2980b9",
+		"27ae60",
+		"c0392b",
+		"2c3e50",
+		"8e44ad",
+	]
+
+	def __init__(self, terminal = "pngcairo", default_width = 1920, default_height = 1080, title = None, xtitle = None, ytitle = None, ytitle2 = None):
 		self._terminal = terminal
 		self._default_width = default_width
 		self._default_height = default_height
 		self._title = title
 		self._xtitle = xtitle
 		self._ytitle = ytitle
+		self._ytitle2 = ytitle2
 		self._datasets = [ ]
 		self._x_timelabel = None
 
@@ -96,7 +115,13 @@ class GnuPlotDiagram():
 		self._datasets.append(dataset)
 		return self
 
+	def _assign_default_colors(self):
+		for (index, dataset) in enumerate(self._datasets):
+			color = self._DEFAULT_COLORS[index % len(self._DEFAULT_COLORS)]
+			dataset.assign_default_color(color)
+
 	def gnuplot_source(self):
+		self._assign_default_colors()
 		yield "set terminal %s size %d,%d" % (self._terminal, self._default_width, self._default_height)
 		if self._title is not None:
 			yield "set title \"%s\"" % (_escape(self._title))
@@ -104,10 +129,14 @@ class GnuPlotDiagram():
 			yield "set xlabel \"%s\"" % (_escape(self._xtitle))
 		if self._ytitle is not None:
 			yield "set ylabel \"%s\"" % (_escape(self._ytitle))
+		if self._ytitle2 is not None:
+			yield "set y2label \"%s\"" % (_escape(self._ytitle2))
 		if self._x_timelabel is not None:
 			yield "set xdata time"
 			yield "set timefmt \"%s\""
 			yield "set format x \"%s\"" % (self._x_timelabel)
+		yield "set ytics nomirror"
+		yield "set y2tics nomirror"
 
 		yield "plot %s" % (", ".join(dataset.plot_cmd for dataset in self._datasets))
 		yield ""
