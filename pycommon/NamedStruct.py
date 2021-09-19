@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 #
 #	NamedStruct - Python structure that has named member entries
-#	Copyright (C) 2017-2019 Johannes Bauer
+#	Copyright (C) 2017-2021 Johannes Bauer
 #
 #	This file is part of pycommon.
 #
@@ -45,8 +45,8 @@ class NamedStruct():
 		fields = self._collection(*values)
 		return fields
 
-	def unpack_head(self, data):
-		return self.unpack(data[:self._struct.size])
+	def unpack_head(self, data, offset = 0):
+		return self.unpack(data[offset : offset + self._struct.size])
 
 	def unpack_from_file(self, f, at_offset = None):
 		if at_offset is not None:
