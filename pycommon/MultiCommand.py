@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 #
 #	MultiCommand - Provide an openssl-style multi-command abstraction
-#	Copyright (C) 2011-2021 Johannes Bauer
+#	Copyright (C) 2011-2024 Johannes Bauer
 #
 #	This file is part of pycommon.
 #
@@ -34,9 +34,10 @@ class MultiCommand():
 	RegisteredCommand = collections.namedtuple("RegisteredCommand", [ "name", "description", "parsergenerator", "action", "aliases", "visible" ])
 	ParseResult = collections.namedtuple("ParseResults", [ "cmd", "args" ])
 
-	def __init__(self, description = None, trailing_text = None):
+	def __init__(self, description = None, trailing_text = None, run_method = False):
 		self._description = description
 		self._trailing_text = trailing_text
+		self._run_method = run_method
 		self._commands = { }
 		self._aliases = { }
 		self._cmdorder = [ ]
@@ -44,16 +45,16 @@ class MultiCommand():
 	def register(self, commandname, description, parsergenerator, **kwargs):
 		supported_kwargs = set(("aliases", "action", "visible"))
 		if len(set(kwargs.keys()) - supported_kwargs) > 0:
-			raise Exception("Unsupported kwarg found. Supported: %s" % (", ".join(sorted(list(supported_kwargs)))))
+			raise ValueError(f"Unsupported kwarg found. Supported: {', '.join(sorted(list(supported_kwargs)))}")
 
 		if (commandname in self._commands) or (commandname in self._aliases):
-			raise Exception("Command '%s' already registered." % (commandname))
+			raise Exception(f"Command '{commandname}' already registered.")
 
 		aliases = kwargs.get("aliases", [ ])
 		action = kwargs.get("action")
 		for alias in aliases:
 			if (alias in self._commands) or (alias in self._aliases):
-				raise Exception("Alias '%s' already registered." % (alias))
+				raise Exception(f"Alias '{alias}' already registered.")
 			self._aliases[alias] = commandname
 
 		cmd = self.RegisteredCommand(commandname, description, parsergenerator, action, aliases, visible = kwargs.get("visible", True))
@@ -63,8 +64,8 @@ class MultiCommand():
 	def _show_syntax(self, msg = None):
 		output_file = sys.stderr if (msg is not None) else sys.stdout
 		if msg is not None:
-			print("Error: %s" % (msg), file = output_file)
-		print("usage: %s [command] [options]" % (sys.argv[0]), file = output_file)
+			print(f"Error: {msg}", file = output_file)
+		print(f"usage: {sys.argv[0]} [command] [options]", file = output_file)
 		print(file = output_file)
 		if self._description is not None:
 			print(self._description, file = output_file)
@@ -128,29 +129,51 @@ class MultiCommand():
 		parseresult = self.parse(cmdline, silent)
 		if parseresult.cmd.action is None:
 			raise Exception("Should run command '%s', but no action was registered." % (parseresult.cmd.name))
-		parseresult.cmd.action(parseresult.cmd.name, parseresult.args)
+		result = parseresult.cmd.action(parseresult.cmd.name, parseresult.args)
+		if self._run_method:
+			result = result.run()
+		return result
+
+class BaseAction():
+	def __init__(self, cmd, args):
+		self._cmd = cmd
+		self._args = args
+
+	@property
+	def cmd(self):
+		return self._cmd
+
+	@property
+	def args(self):
+		return self._args
+
+	def run(self):
+		raise NotImplementedError(self.__class__.__name__)
 
 if __name__ == "__main__":
-	mc = MultiCommand(description = "Run multiple export- and importthings")
+	mc = MultiCommand(description = "Run multiple export- and importthings", run_method = True)
 
-	def importaction(cmd, args):
-		print("Import:", cmd, args)
+	class ImportAction(BaseAction):
+		def run(self):
+			print("Import:", self.cmd, self.args)
+			return self.args.returncode
 
-	class ExportAction():
-		def __init__(self, cmd, args):
-			print("Export:", cmd, args)
+	class ExportAction(BaseAction):
+		def run(self):
+			print("Export:", self.cmd, self.args)
 
 	def genparser(parser):
-		parser.add_argument("-i", "--infile", metavar = "filename", type = str, required = True, help = "Specifies the input text file that is to be imported. Mandatory argument.")
-		parser.add_argument("-n", "--world", metavar = "name", type = str, choices = [ "world", "foo", "bar" ], default = "overworld", help = "Specifies the world name. Possible options are %(choices)s. Default is %(default)s.")
+		parser.add_argument("-r", "--returncode", metavar = "value", type = int, required = True, help = "Gives the exit code. Mandatory argument.")
+		parser.add_argument("-i", "--infile", metavar = "filename", required = True, help = "Specifies the input text file that is to be imported. Mandatory argument.")
+		parser.add_argument("-n", "--world", metavar = "name", choices = [ "world", "foo", "bar" ], default = "overworld", help = "Specifies the world name. Possible options are %(choices)s. Default is %(default)s.")
 		parser.add_argument("-h", "--hello", action = "store_true", help = "Print 'hello world'")
 		parser.add_argument("--verbose", action = "count", default = 0, help = "Increase verbosity. Can be given multiple times.")
-	mc.register("import", "Import some file from somewhere", genparser, action = importaction, aliases = [ "ymport" ])
-
+	mc.register("import", "Import some file from somewhere", genparser, action = ImportAction, aliases = [ "ymport" ])
 
 	def genparser(parser):
-		parser.add_argument("-o", "--outfile", metavar = "filename", type = str, required = True, help = "Specifies the input text file that is to be imported. Mandatory argument.")
+		parser.add_argument("-o", "--outfile", metavar = "filename", help = "Specifies the input text file that is to be imported.")
 		parser.add_argument("--verbose", action = "count", default = 0, help = "Increase verbosity. Can be given multiple times.")
 	mc.register("export", "Export some file to somewhere", genparser, action = ExportAction)
 
-	mc.run(sys.argv[1:])
+	returncode = mc.run(sys.argv[1:])
+	sys.exit(returncode or 0)
