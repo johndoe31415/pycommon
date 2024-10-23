@@ -26,6 +26,7 @@
 import sys
 import collections
 import textwrap
+import logging
 
 from .FriendlyArgumentParser import FriendlyArgumentParser
 from .PrefixMatcher import PrefixMatcher
@@ -149,6 +150,17 @@ class BaseAction():
 
 	def run(self):
 		raise NotImplementedError(self.__class__.__name__)
+
+class LoggingAction(BaseAction):
+	def __init__(self, cmd, args):
+		super().__init__(cmd, args)
+		if self.args.verbose == 0:
+			loglevel = logging.WARNING
+		elif self.args.verbose == 1:
+			loglevel = logging.INFO
+		elif self.args.verbose >= 2:
+			loglevel = logging.DEBUG
+		logging.basicConfig(format = "{name:>20s} [{levelname:.1s}]: {message}", style = "{", level = loglevel)
 
 if __name__ == "__main__":
 	mc = MultiCommand(description = "Run multiple export- and importthings", run_method = True)
