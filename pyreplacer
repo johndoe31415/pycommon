@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 #	pycommon - Collection of various useful Python utilities.
-#	Copyright (C) 2019-2019 Johannes Bauer
+#	Copyright (C) 2019-2024 Johannes Bauer
 #
 #	This file is part of pycommon.
 #
@@ -31,8 +31,8 @@ import subprocess
 import datetime
 from MenuChoice import MenuChoice
 
-class PossibleMatchingFile(object):
-	_UUID_REGEX = re.compile("#\s+File UUID (?P<uuid>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$")
+class PossibleMatchingFile():
+	_UUID_REGEX = re.compile(r"#\s+File UUID (?P<uuid>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$")
 
 	def __init__(self, filename):
 		self._filename = os.path.realpath(filename)
@@ -305,8 +305,8 @@ class ScannerReplacerGUI(object):
 				print("Lazy programmer: Action '%s' unimplemented." % (action))
 			self._srep.update()
 
-for filename in os.listdir("."):
+for filename in os.listdir("pycommon"):
 	if filename.endswith(".py"):
-		srgui = ScannerReplacerGUI(filename)
+		srgui = ScannerReplacerGUI(f"pycommon/{filename}")
 		srgui.run()
 
