@@ -167,12 +167,12 @@ if __name__ == "__main__":
 		parser.add_argument("-i", "--infile", metavar = "filename", required = True, help = "Specifies the input text file that is to be imported. Mandatory argument.")
 		parser.add_argument("-n", "--world", metavar = "name", choices = [ "world", "foo", "bar" ], default = "overworld", help = "Specifies the world name. Possible options are %(choices)s. Default is %(default)s.")
 		parser.add_argument("-h", "--hello", action = "store_true", help = "Print 'hello world'")
-		parser.add_argument("--verbose", action = "count", default = 0, help = "Increase verbosity. Can be given multiple times.")
+		parser.add_argument("-v", "--verbose", action = "count", default = 0, help = "Increase verbosity. Can be given multiple times.")
 	mc.register("import", "Import some file from somewhere", genparser, action = ImportAction, aliases = [ "ymport" ])
 
 	def genparser(parser):
 		parser.add_argument("-o", "--outfile", metavar = "filename", help = "Specifies the input text file that is to be imported.")
-		parser.add_argument("--verbose", action = "count", default = 0, help = "Increase verbosity. Can be given multiple times.")
+		parser.add_argument("-v", "--verbose", action = "count", default = 0, help = "Increase verbosity. Can be given multiple times.")
 	mc.register("export", "Export some file to somewhere", genparser, action = ExportAction)
 
 	returncode = mc.run(sys.argv[1:])
