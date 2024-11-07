@@ -131,7 +131,7 @@ class MultiCommand():
 		if parseresult.cmd.action is None:
 			raise Exception("Should run command '%s', but no action was registered." % (parseresult.cmd.name))
 		result = parseresult.cmd.action(parseresult.cmd.name, parseresult.args)
-		if self._run_method:
+		if self._run_method and not isinstance(result, int):
 			result = result.run()
 		return result
 
@@ -158,7 +158,7 @@ class LoggingAction(BaseAction):
 			loglevel = logging.WARNING
 		elif self.args.verbose == 1:
 			loglevel = logging.INFO
-		elif self.args.verbose >= 2:
+		else:
 			loglevel = logging.DEBUG
 		logging.basicConfig(format = "{name:>20s} [{levelname:.1s}]: {message}", style = "{", level = loglevel)
 
