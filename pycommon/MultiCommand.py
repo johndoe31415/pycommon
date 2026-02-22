@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 #
 #	MultiCommand - Provide an openssl-style multi-command abstraction
-#	Copyright (C) 2011-2024 Johannes Bauer
+#	Copyright (C) 2011-2026 Johannes Bauer
 #
 #	This file is part of pycommon.
 #
@@ -27,23 +27,26 @@ import sys
 import collections
 import textwrap
 import logging
-
 from .FriendlyArgumentParser import FriendlyArgumentParser
 from .PrefixMatcher import PrefixMatcher
 
 class MultiCommand():
-	RegisteredCommand = collections.namedtuple("RegisteredCommand", [ "name", "description", "parsergenerator", "action", "aliases", "visible" ])
+	RegisteredCommand = collections.namedtuple("RegisteredCommand", [ "name", "description", "parser", "action", "aliases", "visible" ])
 	ParseResult = collections.namedtuple("ParseResults", [ "cmd", "args" ])
 
-	def __init__(self, description = None, trailing_text = None, run_method = False):
+	def __init__(self, description = None, trailing_text = None):
 		self._description = description
 		self._trailing_text = trailing_text
-		self._run_method = run_method
-		self._commands = { }
+		self._commands = collections.OrderedDict()
 		self._aliases = { }
-		self._cmdorder = [ ]
 
-	def register(self, commandname, description, parsergenerator, **kwargs):
+	def _create_command_parser(self, parser_generator: callable, commandname: str, description: str):
+		parser = FriendlyArgumentParser(prog = f"{sys.argv[0]} {commandname}", description = description, add_help = False)
+		parser_generator(parser)
+		parser.add_argument("--help", action = "help", help = "Show this help page.")
+		return parser
+
+	def register(self, commandname: str, description: str, parser_generator: callable, **kwargs):
 		supported_kwargs = set(("aliases", "action", "visible"))
 		if len(set(kwargs.keys()) - supported_kwargs) > 0:
 			raise ValueError(f"Unsupported kwarg found. Supported: {', '.join(sorted(list(supported_kwargs)))}")
@@ -58,11 +61,11 @@ class MultiCommand():
 				raise Exception(f"Alias '{alias}' already registered.")
 			self._aliases[alias] = commandname
 
-		cmd = self.RegisteredCommand(commandname, description, parsergenerator, action, aliases, visible = kwargs.get("visible", True))
+		parser = self._create_command_parser(parser_generator, commandname, description)
+		cmd = self.RegisteredCommand(name = commandname, description = description, parser = parser, action = action, aliases = aliases, visible = kwargs.get("visible", True))
 		self._commands[commandname] = cmd
-		self._cmdorder.append(commandname)
 
-	def _show_syntax(self, msg = None):
+	def _show_syntax(self, msg: str | None = None):
 		output_file = sys.stderr if (msg is not None) else sys.stdout
 		if msg is not None:
 			print(f"Error: {msg}", file = output_file)
@@ -72,8 +75,7 @@ class MultiCommand():
 			print(self._description, file = output_file)
 			print(file = output_file)
 		print("Available commands:", file = output_file)
-		for commandname in self._cmdorder:
-			command = self._commands[commandname]
+		for (commandname, command) in self._commands.items():
 			if not command.visible:
 				continue
 			commandname_line = command.name
@@ -88,21 +90,21 @@ class MultiCommand():
 		print("Options vary from command to command. To receive further info, type", file = output_file)
 		print("    %s [command] --help" % (sys.argv[0]), file = output_file)
 
-	def _show_syntax_cmd(self, cmdname, *args):
+	def _show_syntax_cmd(self, cmdname: str, *args):
 		self._show_syntax()
 		return 0
 
-	def _raise_error(self, msg, silent = False):
+	def _raise_error(self, msg: str, silent: bool = False):
 		if silent:
 			raise Exception(msg)
 		else:
 			self._show_syntax(msg)
 			sys.exit(1)
 
-	def _getcmdnames(self):
+	def _getcmdnames(self) -> set[str]:
 		return set(self._commands.keys()) | set(self._aliases.keys())
 
-	def parse(self, cmdline, silent = False):
+	def parse(self, cmdline: list[str], silent: bool = False) -> ParseResult:
 		if len(cmdline) < 1:
 			self._raise_error("No command supplied.")
 
@@ -111,34 +113,35 @@ class MultiCommand():
 		try:
 			supplied_cmd = pm.matchunique(cmdline[0])
 		except Exception as e:
-			self._raise_error("Invalid command supplied: %s" % (str(e)))
+			self._raise_error(f"Invalid command supplied: {str(e)}")
 
 		if supplied_cmd in [ "-h", "--help" ]:
-			return self.ParseResult(cmd = self.RegisteredCommand(name = "--help", description = None, parsergenerator = None, action = self._show_syntax_cmd, aliases = None, visible = False), args = None)
+			return self.ParseResult(cmd = self.RegisteredCommand(name = "--help", description = None, parser = None, action = self._show_syntax_cmd, aliases = None, visible = False), args = None)
 		elif supplied_cmd in self._aliases:
 			supplied_cmd = self._aliases[supplied_cmd]
 
 		command = self._commands[supplied_cmd]
-		parser = FriendlyArgumentParser(prog = sys.argv[0] + " " + command.name, description = command.description, add_help = False)
-		command.parsergenerator(parser)
-		parser.add_argument("--help", action = "help", help = "Show this help page.")
-		parser.setsilenterror(silent)
-		args = parser.parse_args(cmdline[1:])
+		command.parser.setsilenterror(silent)
+		args = command.parser.parse_args(cmdline[1:])
 		return self.ParseResult(command, args)
 
-	def run(self, cmdline, silent = False):
+	def run(self, cmdline: list[str], silent: bool = False):
 		parseresult = self.parse(cmdline, silent)
 		if parseresult.cmd.action is None:
-			raise Exception("Should run command '%s', but no action was registered." % (parseresult.cmd.name))
-		result = parseresult.cmd.action(parseresult.cmd.name, parseresult.args)
-		if self._run_method and not isinstance(result, int):
+			raise Exception(f"Should run command '{parseresult.cmd.name}', but no action was registered.")
+		result = parseresult.cmd.action(self, parseresult.cmd.name, parseresult.args)
+		if hasattr(result, "run"):
 			result = result.run()
 		return result
 
 class BaseAction():
-	def __init__(self, cmd, args):
+	def __init__(self, multi_command: MultiCommand, cmd: str, args):
+		self._multi_command = multi_command
 		self._cmd = cmd
 		self._args = args
+
+	def _run_command(self, cmdline: list[str]):
+		return self._multi_command.run(cmdline = cmdline)
 
 	@property
 	def cmd(self):
@@ -152,8 +155,8 @@ class BaseAction():
 		raise NotImplementedError(self.__class__.__name__)
 
 class LoggingAction(BaseAction):
-	def __init__(self, cmd, args):
-		super().__init__(cmd, args)
+	def __init__(self, multi_command: MultiCommand, cmd: str, args):
+		super().__init__(multi_command, cmd, args)
 		if self.args.verbose == 0:
 			loglevel = logging.WARNING
 		elif self.args.verbose == 1:
@@ -163,8 +166,6 @@ class LoggingAction(BaseAction):
 		logging.basicConfig(format = "{name:>20s} [{levelname:.1s}]: {message}", style = "{", level = loglevel)
 
 if __name__ == "__main__":
-	mc = MultiCommand(description = "Run multiple export- and importthings", run_method = True)
-
 	class ImportAction(BaseAction):
 		def run(self):
 			print("Import:", self.cmd, self.args)
@@ -174,6 +175,7 @@ if __name__ == "__main__":
 		def run(self):
 			print("Export:", self.cmd, self.args)
 
+	mc = MultiCommand(description = "Run multiple export- and importthings")
 	def genparser(parser):
 		parser.add_argument("-r", "--returncode", metavar = "value", type = int, required = True, help = "Gives the exit code. Mandatory argument.")
 		parser.add_argument("-i", "--infile", metavar = "filename", required = True, help = "Specifies the input text file that is to be imported. Mandatory argument.")
