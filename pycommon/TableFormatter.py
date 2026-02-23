@@ -1,386 +1,289 @@
-#!/usr/bin/python3
+#	kartfire - Test framework to consistently run submission files
+#	Copyright (C) 2023-2026 Johannes Bauer
 #
-#	TableFormatter - Print tables nicely on ASCII terminals
-#	Copyright (C) 2011-2012 Johannes Bauer
-#	
-#	This file is part of pycommon.
+#	This file is part of kartfire.
 #
-#	pycommon is free software; you can redistribute it and/or modify
+#	kartfire is free software; you can redistribute it and/or modify
 #	it under the terms of the GNU General Public License as published by
 #	the Free Software Foundation; this program is ONLY licensed under
 #	version 3 of the License, later versions are explicitly excluded.
 #
-#	pycommon is distributed in the hope that it will be useful,
+#	kartfire is distributed in the hope that it will be useful,
 #	but WITHOUT ANY WARRANTY; without even the implied warranty of
 #	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #	GNU General Public License for more details.
 #
 #	You should have received a copy of the GNU General Public License
-#	along with pycommon; if not, write to the Free Software
+#	along with kartfire; if not, write to the Free Software
 #	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #
 #	Johannes Bauer <JohannesBauer@gmx.de>
-#
-#	File UUID c769b4e3-0303-4558-96b1-5fa444b8199d
 
-import sys
-import io
+import enum
+import collections
+import dataclasses
 
-class TableCellFormatter():
-	def __init__(self, **kwargs):
-		self._minlen = kwargs.get("minlen", None)
-		self._maxlen = kwargs.get("maxlen", None)
-		self._align = kwargs.get("align", "L")
-		self._prefix = kwargs.get("prefix", None)
-		self._postfix = kwargs.get("postfix", None)
-		assert((self._minlen is None) or (self._minlen >= 4))
-		assert((self._minlen is None) or (self._maxlen is None) or (self._minlen <= self._maxlen))
-		assert(self._align in [ "R", "L" ])
+class CellFormatter():
+	_BASIC = { }
 
-	def setprefix(self, prefix):
-		self._prefix = prefix
-	
-	def setpostfix(self, postfix):
-		self._postfix = postfix
+	class Alignment(enum.IntEnum):
+		Left = enum.auto()
+		Center = enum.auto()
+		Right = enum.auto()
 
-	# returns min(self._maxlen, inheritfmtr._maxlen) and handles None appropriately
-	def _getmaxlen(self, inheritfmtr):
-		lengths = [ x for x in [ self._maxlen ] if (x is not None) ]
-		if (inheritfmtr is not None) and (inheritfmtr._maxlen is not None):
-			lengths.append(inheritfmtr._maxlen)
-		if len(lengths) == 0:
-			return None
-		else:
-			return max(lengths)
+	class Color(enum.Enum):
+		Default = ("", "")
+		Red = ("\x1b[31m", "\x1b[0m")
+		Green = ("\x1b[32m", "\x1b[0m")
+		Yellow = ("\x1b[33m", "\x1b[0m")
+		Blue = ("\x1b[34m", "\x1b[0m")
+		Purple = ("\x1b[35m", "\x1b[0m")
+		Cyan = ("\x1b[36m", "\x1b[0m")
 
-	# returns max(self._minlen, inheritfmtr._minlen, tolen) and handles None appropriately
-	def _getpadlen(self, tolen, inheritfmtr):
-		lengths = [ x for x in [ self._minlen, tolen ] if (x is not None) ]
-		if (inheritfmtr is not None) and (inheritfmtr._minlen is not None):
-			lengths.append(inheritfmtr._minlen)
-		if len(lengths) == 0:
-			return None
-		else:
-			return max(lengths)
+	class Keep():
+		pass
 
-	def _getprefix(self):
-		if self._prefix is None:
-			return ""
-		else:
-			return self._prefix
-	
-	def _getpostfix(self):
-		if self._postfix is None:
-			return ""
-		else:
-			return self._postfix
+	def __init__(self, content_to_str_fnc: callable = str, align: Alignment = Alignment.Left, min_length: int | None = None, max_length: int | None = None, abbreviation_str: str = "…", color: Color = Color.Default):
+		self._content_to_str_fnc = content_to_str_fnc
+		self._align = align
+		self._min_length = min_length
+		self._max_length = max_length
+		self._abbreviation_str = abbreviation_str
+		self._color = color
 
-	def fmt(self, instr, tolen = None, inheritfmtr = None):
-		orig = instr
-		# Truncation if too long
-		maxlen = self._getmaxlen(inheritfmtr)
-		if (maxlen is not None) and (len(instr) > maxlen):
-			instr = instr[:maxlen - 3] + "..."
+	def override(self, content_to_str_fnc = Keep, align = Keep, min_length = Keep, max_length = Keep, abbreviation_str = Keep, color = Keep):
+		return CellFormatter(
+			content_to_str_fnc = self._content_to_str_fnc if (content_to_str_fnc is self.Keep) else content_to_str_fnc,
+			align = self._align if (align is self.Keep) else align,
+			min_length = self._min_length if (min_length is self.Keep) else min_length,
+			max_length = self._max_length if (max_length is self.Keep) else max_length,
+			abbreviation_str = self._abbreviation_str if (abbreviation_str is self.Keep) else abbreviation_str,
+			color = self._color if (color is self.Keep) else color,
+		)
 
-		# Padding if too short
-		padlen = self._getpadlen(tolen, inheritfmtr)
-		if (padlen is not None) and (len(instr) < padlen):
-			if self._align == "L":
-				instr = self._getprefix() + instr + self._getpostfix() + (" " * (padlen - len(instr)))
-			else:
-				instr = (" " * (padlen - len(instr))) + self._getprefix() + instr + self._getpostfix()
-		else:
-			instr = self._getprefix() + instr + self._getpostfix()
+	def string_width(self, string: str) -> int:
+		width = len(string)
+		char_count = collections.Counter(string)
+		width -= char_count["\u0305"]	# Overline sequences do not count as width
+		return width
 
-		return instr
+	def width_of(self, content: any):
+		length = self.string_width(self._content_to_str_fnc(content))
+		if self._min_length is not None:
+			length = max(self._min_length, length)
+		if self._max_length is not None:
+			length = min(self._max_length, length)
+		return length
 
+	def __call__(self, content: any, length: int):
+		value = self._content_to_str_fnc(content)
+		assert(isinstance(value, str))
+		width = self.string_width(value)
+		if width > length:
+			# Value too long, truncate
+			value = value[ : length - len(self._abbreviation_str)] + self._abbreviation_str
+		elif width < length:
+			# Value too short, align
+			match self._align:
+				case self.Alignment.Left:
+					lpad = 0
+					rpad = length - width
 
-class SimpleTableFormat():
-	def getcolsep(self):
-		return "   "
-	
-	def getleftcolborder(self):
-		return ""
-	
-	def getrightcolborder(self):
-		return ""
+				case self.Alignment.Center:
+					lpad = (length - width) // 2
+					rpad = (length - width) - lpad
 
-	def getleftspacerborder(self, spacertype):
-		return ""
-	
-	def getrightspacerborder(self, spacertype):
-		return ""
-	
-	def getspacersep(self, spacertype):
-		return ""
-	
-	def getspacerhorizontal(self, spacertype):
-		return ""
+				case self.Alignment.Right:
+					lpad = length - width
+					rpad = 0
+			value = (" " * lpad) + value + (" " * rpad)
+		(prefix, suffix) = self._color.value
+		return prefix + value + suffix
 
+	@classmethod
+	def basic_lalign(cls):
+		if "lalign" not in cls._BASIC:
+			cls._BASIC["lalign"] = CellFormatter()
+		return cls._BASIC["lalign"]
 
-class ASCIITableFormat(SimpleTableFormat):
-	def getcolsep(self):
-		return " | "
-	
-	def getleftcolborder(self):
-		return "| "
-	
-	def getrightcolborder(self):
-		return " |"
-	
-	def getleftspacerborder(self, spacertype):
-		return "+-"
-	
-	def getrightspacerborder(self, spacertype):
-		return "-+"
-	
-	def getspacersep(self, spacertype):
-		return "-+-"
-	
-	def getspacerhorizontal(self, spacertype):
-		return "-"
+	@classmethod
+	def basic_ralign(cls):
+		if "ralign" not in cls._BASIC:
+			cls._BASIC["ralign"] = CellFormatter(align = cls.Alignment.Right)
+		return cls._BASIC["ralign"]
 
+	@classmethod
+	def basic_center(cls):
+		if "center" not in cls._BASIC:
+			cls._BASIC["center"] = CellFormatter(align = cls.Alignment.Center)
+		return cls._BASIC["center"]
 
-class FancyTableFormat(SimpleTableFormat):
-	_charsets = {
-		"normal": {
-			"V":	"│",
-			"H":	"─",
-			"TL":	"┌",
-			"ML":	"├",
-			"BL":	"└",
-			"TR":	"┐",
-			"MR":	"┤",
-			"BR":	"┘",
-			"TM":	"┬",
-			"MM":	"┼",
-			"BM":	"┴",
-		},
-		"fat": {
-			"V":	"┃",
-			"H":	"━",
-			"TL":	"┏",
-			"ML":	"┣",
-			"BL":	"┗",
-			"TR":	"┓",
-			"MR":	"┫",
-			"BR":	"┛",
-			"TM":	"┳",
-			"MM":	"╋",
-			"BM":	"┻",
-		},
-		"double": {
-			"V":	"║",
-			"H":	"═",
-			"TL":	"╔",
-			"ML":	"╠",
-			"BL":	"╚",
-			"TR":	"╗",
-			"MR":	"╣",
-			"BR":	"╝",
-			"TM":	"╦",
-			"MM":	"╬",
-			"BM":	"╩",
-		},
-		"sngdouble": {
-			"V":	"│",
-			"H":	"═",
-			"TL":	"╒",
-			"ML":	"╞",
-			"BL":	"╘",
-			"TR":	"╕",
-			"MR":	"╡",
-			"BR":	"╛",
-			"TM":	"╤",
-			"MM":	"╪",
-			"BM":	"╧",
-		},
-		"horiz-only": {
-			"V":	" ",
-			"H":	"─",
-			"TL":	" ",
-			"ML":	" ",
-			"BL":	" ",
-			"TR":	" ",
-			"MR":	" ",
-			"BR":	" ",
-			"TM":	"┄",
-			"MM":	"┄",
-			"BM":	"┄",
-		},
-	}
+class Table():
+	class RowType(enum.IntEnum):
+		Data = enum.auto()
+		Separator = enum.auto()
 
-	def __init__(self, tabletype = None):
-		if tabletype is None:
-			tabletype = "normal"
-		self._charset = FancyTableFormat._charsets[tabletype]
+	@dataclasses.dataclass(frozen = True, slots = True)
+	class Row():
+		row_type: "RowType"
+		data: dict[str, any] | None = None
+		cell_formatters: dict[str, CellFormatter] | None = None
 
-	def __getitem__(self, key):
-		return self._charset[key]
-
-	def getcolsep(self):
-		return " " + self["V"] + " "
-	
-	def getleftcolborder(self):
-		return self["V"] + " "
-	
-	def getrightcolborder(self):
-		return " " + self["V"]
-	
-	def getleftspacerborder(self, spacertype):
-		return self[spacertype + "L"] + self["H"]
-	
-	def getrightspacerborder(self, spacertype):
-		return self["H"] + self[spacertype + "R"]
-	
-	def getspacersep(self, spacertype):
-		return self["H"] + self[spacertype + "M"] + self["H"]
-	
-	def getspacerhorizontal(self, spacertype):
-		return self["H"]
-
-
-class TableFormatter():
-	def __init__(self, tableformat = None):
+	def __init__(self, style: dict | None = None, pad: int = 1):
+		self._style = style
+		self._pad = pad
 		self._rows = [ ]
-		self._rowformatters = { }
-		self._cellformatters = { }
-		if tableformat is None:
-			self._tableformat = SimpleTableFormat()
+		self._column_formatters = { }
+		if self._style is None:
+			self._style = {
+				"V":	"│",
+				"H":	"─",
+				"TL":	"┌",
+				"ML":	"├",
+				"BL":	"└",
+				"TR":	"┐",
+				"MR":	"┤",
+				"BR":	"┘",
+				"TM":	"┬",
+				"MM":	"┼",
+				"BM":	"┴",
+			}
+
+	def format_column(self, col_name: str, formatter: CellFormatter):
+		self._column_formatters[col_name] = formatter
+		return self
+
+	def format_columns(self, column_format: dict[str, CellFormatter]):
+		self._column_formatters.update(column_format)
+		return self
+
+	def add_separator_row(self):
+		self._rows.append(self.Row(row_type = self.RowType.Separator))
+		return self
+
+	def add_row(self, row_data: dict, cell_formatters: dict[str, CellFormatter] | None = None):
+		self._rows.append(self.Row(row_type = self.RowType.Data, data = row_data, cell_formatters = cell_formatters))
+		return self
+
+	def add_fixed_format_row(self, row_data: dict, fixed_format: CellFormatter):
+		return self.add_row(row_data = row_data, cell_formatters = { col_name: fixed_format for col_name in row_data })
+
+	def _get_column_formatter(self, col_name: str):
+		if col_name not in self._column_formatters:
+			self._column_formatters[col_name] = CellFormatter()
+		return self._column_formatters[col_name]
+
+	def _get_cell_formatter(self, col_name: str, row: Row):
+		if (row.cell_formatters is not None) and (col_name in row.cell_formatters):
+			return row.cell_formatters[col_name]
 		else:
-			self._tableformat = tableformat
-		self._colwidths = None
+			return self._get_column_formatter(col_name)
 
-	def add(self, *row):
-		self._rows.append(row)
-		self._colwidths = None
-		return self
+	def _determine_col_width(self, col_name: str):
+		max_length = 0
+		for row in self._rows:
+			if row.row_type != self.RowType.Data:
+				continue
+			if col_name not in row.data:
+				continue
 
-	def addspacer(self):
-		self._rows.append(None)
-		self._colwidths = None
-		return self
+			cell_content = row.data[col_name]
+			cell_formatter = self._get_cell_formatter(col_name, row)
+			length = cell_formatter.width_of(cell_content)
+			max_length = max(max_length, length)
+		return max_length
 
-	def addcellformatter(self, colid, rowid, fmtr):
-		assert(colid >= 0)
-		if rowid < 0:
-			rowid += len(self._rows)
-		self._cellformatters[(colid, rowid)] = fmtr
-
-	def getcolcnt(self):
-		return max([ len(r) for r in self._rows if (r is not None)])
-
-	def colfmt(self, colid, colfmter):
-		assert(isinstance(colid, int))
-		self._rowformatters[colid] = colfmter
-		self._colwidths = None
-		
-	def _calccolwidths(self):
-		if self._colwidths is not None:
-			return
-
-		self._colwidths = { }
-		for rowid in range(len(self._rows)):
-			row = self._rows[rowid]
-			if row is not None:
-				for colid in range(len(row)):
-					cellid = (colid, rowid)
-					coltext = row[colid]
-					if self._rowformatters.get(colid) is not None:
-						coltext = self._rowformatters[colid].fmt(coltext)
-					self._colwidths[colid] = max(self._colwidths.get(colid, 0), len(coltext))
-
-	def print(self, f = None):
-		if f is None:
-			f = sys.stdout
-		self._calccolwidths()
-
-		stdfmt = TableCellFormatter()
-		colcnt = self.getcolcnt()
-		for rowid in range(len(self._rows)):
-			row = self._rows[rowid]
-			if row is not None:
-				rowtext = self._tableformat.getleftcolborder()
-				for colid in range(colcnt):
-					cellid = (colid, rowid)
-					if colid < len(row):
-						coltext = row[colid]
+	def _print_row(self, col_widths: collections.OrderedDict[str, int], row: Row):
+		match row.row_type:
+			case self.RowType.Data:
+				line = [ ]
+				for (col_name, col_width) in col_widths.items():
+					if col_name not in row.data:
+						# Empty cell
+						line.append(" " * (col_width + 2 * self._pad))
 					else:
-						coltext = ""
+						cell_content = row.data[col_name]
+						cell_formatter = self._get_cell_formatter(col_name, row)
+						line.append((" " * self._pad) + cell_formatter(cell_content, col_width) + (" " * self._pad))
+				print(self._style["V"] + self._style["V"].join(line) + self._style["V"])
 
-					if self._cellformatters.get(cellid) is not None:
-						coltext = self._cellformatters[cellid].fmt(coltext, self._colwidths[colid], self._rowformatters.get(colid))
-					elif self._rowformatters.get(colid) is not None:
-						coltext = self._rowformatters[colid].fmt(coltext, self._colwidths[colid])
-					else:
-						coltext = stdfmt.fmt(coltext, self._colwidths[colid])
-					rowtext += coltext
-					if colid < colcnt - 1:
-						rowtext += self._tableformat.getcolsep()
-				rowtext += self._tableformat.getrightcolborder()
-			else:
-				# Spacer row
-				if rowid == 0:
-					spacertype = "T"
-				elif rowid == len(self._rows) - 1:
-					spacertype = "B"
-				else:
-					spacertype = "M"
-				rowtext = self._tableformat.getleftspacerborder(spacertype)
-				for colid in range(colcnt):
-					rowtext += self._tableformat.getspacerhorizontal(spacertype) * self._colwidths[colid]
-					if colid < colcnt - 1:
-						rowtext += self._tableformat.getspacersep(spacertype)
-				rowtext += self._tableformat.getrightspacerborder(spacertype)
-			print(rowtext, file = f)
+			case self.RowType.Separator:
+				print(self._style["ML"] + self._style["MM"].join(self._style["H"] * (col_width + 2 * self._pad) for col_width in col_widths.values()) + self._style["MR"])
 
-	def __str__(self):
-		s = io.StringIO()
-		self.print(s)
-		return s.getvalue()
-		
+	def _print_head_row(self, col_widths: collections.OrderedDict[str, int]):
+		print(self._style["TL"] + self._style["TM"].join(self._style["H"] * (col_width + 2 * self._pad) for col_width in col_widths.values()) + self._style["TR"])
+
+	def _print_tail_row(self, col_widths: collections.OrderedDict[str, int]):
+		print(self._style["BL"] + self._style["BM"].join(self._style["H"] * (col_width + 2 * self._pad) for col_width in col_widths.values()) + self._style["BR"])
+
+	def print(self, *col_names: tuple[str]):
+		col_widths = collections.OrderedDict((col_name, self._determine_col_width(col_name)) for col_name in col_names)
+		col_widths = collections.OrderedDict((col_name, col_width) for (col_name, col_width) in col_widths.items() if col_width != 0)
+		self._print_head_row(col_widths)
+		for row in self._rows:
+			self._print_row(col_widths, row)
+		self._print_tail_row(col_widths)
+
+	def __getitem__(self, col_name: str):
+		return self._column_formatters[col_name]
 
 if __name__ == "__main__":
-#	table = TableFormatter()
-#	table = TableFormatter(ASCIITableFormat())
-#	table = TableFormatter(FancyTableFormat())
-	table = TableFormatter(FancyTableFormat("fat"))
-#	table = TableFormatter(FancyTableFormat("double"))
-#	table = TableFormatter(FancyTableFormat("sngdouble"))
-#	table = TableFormatter(FancyTableFormat("horiz-only"))
-	table.addspacer()
-	table.add("Foobar", "Barfoo")
-	table.addspacer()
-	table.add("Hier ist ein foobar", "%5.3f" % (1.23456))
-	table.addcellformatter(0, -1, TableCellFormatter(prefix = "moo", postfix = "koo"))
-	table.add("Und dort auch", "%5.3f" % (873.56))
-	table.add("Das hier ist eine viel zu lange sehr sehr lange zeile, die nicht ganz reinpasst", "%5.3f" % (873.56))
-	table.addspacer()
-	table.addcellformatter(0, 5, TableCellFormatter(prefix = "$$$", postfix = "###"))
+	table = Table()
 
-	table.colfmt(0, TableCellFormatter(maxlen = 30, align = "L"))
-	table.colfmt(1, TableCellFormatter(align = "R"))
-	table.print()
+	rfloat_format = CellFormatter(align = CellFormatter.Alignment.Right, content_to_str_fnc = lambda content: f"{content:.2f}")
+	table.format_columns({
+		"count":		CellFormatter.basic_ralign(),
+		"description":	CellFormatter(max_length = 20),
+		"price":		rfloat_format,
+		"sum":			rfloat_format,
+	})
 
+	table.add_row({
+		"pos":				"Position",
+		"count":			"Count",
+		"description":		"Description",
+		"price":			"Price",
+		"sum":				"Sum",
+	}, cell_formatters = {
+		"price":		table["price"].override(content_to_str_fnc = str),
+		"sum":			table["sum"].override(content_to_str_fnc = str),
+	})
+	table.add_separator_row()
+	table.add_row({
+		"pos":				1,
+		"count":			4,
+		"description":		"Ice Cream",
+		"price":			4.90,
+		"sum":				4 * 4.90,
+	})
+	table.add_row({
+		"pos":				2,
+		"count":			12,
+		"description":		"Donut",
+		"price":			2.00,
+		"sum":				12 * 2.00,
+	})
+	table.add_row({
+		"pos":				3,
+		"count":			12,
+		"description":		"This is a long item description much too long to display",
+		"price":			2.00,
+		"sum":				12 * 2.00,
+	})
+	table.add_row({
+		"pos":				4,
+		"description":		"Sales Tax",
+		"price":			"19%",
+		"sum":				0.19 * ((12 * 2) + (4 * 4.90)),
+	}, cell_formatters = {
+		"price": CellFormatter(align = CellFormatter.Alignment.Right, color = CellFormatter.Color.Red),
+	})
+	table.add_separator_row()
+	table.add_row({
+		"description":		"Grand Total",
+		"sum":				1.19 * ((12 * 2) + (4 * 4.90)),
+	}, cell_formatters = {
+		"sum": table["sum"].override(color = CellFormatter.Color.Yellow),
+	})
 
-	testwithansi = True
-	if testwithansi:
-		from Ansi256 import Ansi256
-
-		table = TableFormatter(FancyTableFormat("fat"))
-		table.addspacer()
-		table.add("Foobar", "Barfoo")
-		table.addspacer()
-		table.add("Hier ist ein foobar", "%5.3f" % (1.23456))
-		table.addcellformatter(0, -1, TableCellFormatter(prefix = "<fg:green>", postfix = "<reset>"))
-		table.addcellformatter(1, -1, TableCellFormatter(prefix = "<fg:yellow>", postfix = "<reset>"))
-		table.add("Und dort auch", "%5.3f" % (873.56))
-		table.addcellformatter(1, -1, TableCellFormatter(prefix = "<fg:red>", postfix = "<reset>"))
-		table.add("Das hier ist eine viel zu lange sehr sehr lange zeile, die nicht ganz reinpasst", "%5.3f" % (873.56))
-		table.addcellformatter(0, -1, TableCellFormatter(prefix = "<fg:green>", postfix = "<reset>"))
-		table.addspacer()
-
-		table.colfmt(0, TableCellFormatter(maxlen = 30, align = "L"))
-		table.colfmt(1, TableCellFormatter(align = "R"))
-		Ansi256().print(str(table))
-
+	table.print("pos", "count", "description", "price", "sum")
